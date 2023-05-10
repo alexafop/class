@@ -1,0 +1,74 @@
+Application.swift
+//  ControlRoom
+//
+//  Created by Mario Iannotta on 14/02/2020.
+//  Copyright © 2020 Paul Hudson. All rights reserved.
+//
+
+import Foundation
+import AppKit
+
+struct Application: Hashable, Comparable {
+    let url: URL?
+    let type: ApplicationType?
+    let displayName: String
+    let bundleIdentifier: String
+    let versionNumber: String
+    let buildNumber: String
+    let imageURLs: [URL]?
+    let dataFolderURL: URL?
+    let firstAppGroupFolderURL: URL?
+    let bundleURL: URL?
+
+    static let `default` = Application()
+
+	static func < (lhs: Application, rhs: Application) -> Bool {
+		lhs.displayName.localizedStandardCompare(rhs.displayName) == .orderedAscending
+	}
+
+    private init() {
+        url = nil
+        type = nil
+        displayName = ""
+        bundleIdentifier = ""
+        versionNumber = ""
+        buildNumber = ""
+        imageURLs = nil
+        dataFolderURL = nil
+        firstAppGroupFolderURL = nil
+        bundleURL = nil
+    }
+
+    init?(application: SimCtl.Application) {
+        guard let url = URL(string: application.bundlePath) else { return nil }
+
+        self.url = url
+        type = application.type
+        displayName = application.displayName
+
+        let plistURL = url.appendingPathComponent("Info.plist")
+        let plistDictionary = NSDictionary(contentsOf: plistURL)
+        bundleIdentifier = application.bundleIdentifier
+        versionNumber = plistDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        buildNumber = plistDictionary?["CFBundleVersion"] as? String ?? ""
+
+        imageURLs = Self.fetchIconName(plistDictionary: plistDictionary)
+			.sorted(by: >)
+			.compactMap { Bundle(url: url)?.urlForImageResource($0) }
+
+        dataFolderURL = URL(string: application.dataFolderPath ?? "")
+        firstAppGroupFolderURL = URL(string: application.appGroupsFolderPaths?.first?.value ?? "")
+        bundleURL = URL(string: application.bundlePath)
+    }
+
+	var icon: NSImage? {
+		guard let imageURLs = imageURLs else { return nil }
+
+		for iconURL in imageURLs {
+			if let iconImage = NSImage(contentsOf: iconURL) {
+				return iconImage
+			}
+		}
+
+		return nil
+	}
